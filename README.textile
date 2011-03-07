@@ -9,7 +9,9 @@ Erlplex is licensed under the MIT License (see LICENSE).
 h2. Features
 
 # Pretty standard implementation
-# Observes the ordering specification for equal values described <a href=???>here</a>
+# Observes the ordering specification for equal values described in the paper
+  "CONVERGENCE PROPERTIES OF THE NELDER–MEAD SIMPLEX METHOD IN LOW DIMENSIONS"
+  by Segarias, Reeds, Wright & Wright.
 
 h2. Installation
 

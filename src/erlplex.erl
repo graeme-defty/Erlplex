@@ -4,53 +4,69 @@
 -include("../include/erlplex.hrl").
 -compile([export_all]).
 
+%% @doc Creates a new simplex from the evaluation function and some intial points
+%%      The function must take one vector and return the value at that point.
+%% @spec create_simplex(F::fun/1(),Data::[vector[]]) -> simplex()
+
+create_simplex(Func,Data)->
+    Points = [ #point{value=Func(D), data=D} || D<-Data],
+    #simplex{func=Func,points=lists:sort    (fun(A,B)->A#point.value > B#point.value end, Points)}.
+
+%% @doc Operates on a simplex using the Nelder-Mead algorithm
+%%      and returns the solution simplex.
+%% @spec solve(S::simplex()) -> simplex()
+%% @spec solve(S::simplex(),Precision::float) -> simplex()
+%% @spec solve(S::simplex(),Precision::float,Limit::integer) -> simplex()
+%%
+%% precision specifies the acceptable error interval on the result (default 10^-6)
+%% Limit specifies the maximum number of Nelder-Mead iterations (default 1000)
+
+solve(S)                -> solve(S,0.0000001).
+solve(S,Precision)      -> solve(S,Precision,1000).
+solve(S,Precision,Limit)-> steps(S, Precision, Limit).
+
 steps(S, _, 0) -> S;
-steps(S, Func, Steps) ->
-    NewS = step(S, Func),
-    case (hd(NewS#simplex.points))#point.value - (lists:last(NewS#simplex.points))#point.value < 0.0000000000001 of
+steps(S, Precision, Steps) ->
+    NewS = step(S),
+    case (hd(NewS#simplex.points))#point.value - (lists:last(NewS#simplex.points))#point.value < Precision of
       true -> 
         NewS;
       false -> 
-        io:format("Result:~n~p~n",[NewS]),
-        steps(NewS, Func, Steps-1)
+        steps(NewS, Precision, Steps-1)
     end.
 
-step(S, Func) ->
-    CoG = average(tl(S#simplex.points),Func),
-    do_reflect(S, CoG, Func).
+step(S) ->
+    CoG = average(tl(S#simplex.points), S#simplex.func),
+    do_reflect(S, CoG).
 
-do_reflect(S, CoG, Func) ->
-    Ref = reflect(hd(S#simplex.points),CoG,Func),
+do_reflect(S, CoG) ->
+    Ref = reflect(hd(S#simplex.points),CoG,S#simplex.func),
     case Ref#point.value < (lists:last(S#simplex.points))#point.value of
       true -> 
-        Ext = extend(hd(S#simplex.points),CoG,Func),
+        Ext = extend(hd(S#simplex.points),CoG,S#simplex.func),
         case Ext#point.value < Ref#point.value of
           true ->
-            io:format("extend: ",[]),
             S#simplex{points=lists:merge(fun(A,B)->A>B end,[Ext],tl(S#simplex.points))};
           false ->
-            io:format("reflect: ",[]),
             S#simplex{points=lists:merge(fun(A,B)->A>B end,[Ref],tl(S#simplex.points))}
         end;
       false -> 
-        do_contract(S, CoG, Func)
+        do_contract(S, CoG)
     end.
 
-do_contract(S,CoG,Func) ->
-    Cont = contract(hd(S#simplex.points),CoG,Func),
+do_contract(S,CoG) ->
+    Cont = contract(hd(S#simplex.points),CoG,S#simplex.func),
     case Cont#point.value < (hd(S#simplex.points))#point.value of
       true ->
-        io:format("contract: ",[]),
         S#simplex{points=lists:merge(fun(A,B)->A>B end,[Cont],tl(S#simplex.points))};
       false ->
-        do_shrink(S,Func)
+        do_shrink(S)
     end.
 
-do_shrink(S, Func) -> 
+do_shrink(S) -> 
     Points = lists:reverse(S#simplex.points),
-    New_points = [hd(Points)|[average([hd(Points),Point],Func) || Point <- tl(Points)]],
-    io:format("shrink: ",[]),
-    #simplex{points=lists:sort(fun(A,B)->A#point.value>B#point.value end, New_points)}.
+    New_points = [hd(Points)|[average([hd(Points),Point],S#simplex.func) || Point <- tl(Points)]],
+    S#simplex{points=lists:sort(fun(A,B)->A#point.value>B#point.value end, New_points)}.
 
 %% @doc Reflects one point in a second one.
 %%      If A is the vector of the point to be reflected in the point with vector B
@@ -102,6 +118,7 @@ shrink(A, Points, Func) ->
 %% @spec average(Filename::string()) -> ok
 
 average(Points,Func) ->
+%    io:format("Averaging ~p~n",[Points]),
     Data = v_sum([v_scale(Point#point.data, 1 / length(Points)) || Point <- Points]),
     #point{value=Func(Data),data=Data}.
 

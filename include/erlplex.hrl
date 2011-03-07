@@ -1,4 +1,4 @@
 
 -record(point, {value,data}).
--record(simplex, {points}).
+-record(simplex, {func,points}).
 
